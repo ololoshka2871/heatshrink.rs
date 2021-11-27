@@ -1,0 +1,3 @@
+[submodule "heatshrink-dist"]
+	path = heatshrink-dist
+	url = https://github.com/UnePierre/heatshrink.git
