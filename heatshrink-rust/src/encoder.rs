@@ -4,8 +4,6 @@
 #![allow(unused)]
 #![allow(deprecated)]
 
-use crate::data_provider;
-
 include!("bindings/bindings-encoder.rs");
 
 impl Default for _heatshrink_encoder {
@@ -14,7 +12,7 @@ impl Default for _heatshrink_encoder {
     }
 }
 
-pub struct HeatshrinkEncoder<'a, T>
+pub struct HeatshrinkEncoder<T>
 where
     T: Iterator<Item = u8>,
 {
@@ -22,15 +20,15 @@ where
     finished: bool,
 
     // Поскольку это трейт а не объект нужно чтобы ссылка жила не меньше чем сама структура
-    src: &'a mut T,
+    src: T,
 }
 
-impl<'a, T> HeatshrinkEncoder<'a, T>
+impl<'a, T> HeatshrinkEncoder<T>
 where
     T: Iterator<Item = u8>,
 {
-    pub fn from_source(src: &'a mut T) -> HeatshrinkEncoder<'a, T> {
-        let mut res = HeatshrinkEncoder {
+    pub fn source(src: T) -> Self {
+        let mut res = Self {
             ctx: _heatshrink_encoder::default(),
             finished: false,
             src, // то же что src: src
@@ -42,11 +40,11 @@ where
     }
 }
 
-impl<'a, T> Iterator for HeatshrinkEncoder<'a, T>
+impl<T> Iterator for HeatshrinkEncoder<T>
 where
     T: Iterator<Item = u8>,
 {
-    type Item = u8; // byte
+    type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -81,13 +79,10 @@ where
             }
 
             // need more data
-            let d = self.src.next();
-            if !d.is_none() {
+            if let Some(mut b) = self.src.next() {
                 let mut actualy_read: usize = 0;
-                let mut in_buf = d.unwrap();
-                let mut res = unsafe {
-                    heatshrink_encoder_sink(&mut self.ctx, &mut in_buf, 1, &mut actualy_read)
-                };
+                let mut res =
+                    unsafe { heatshrink_encoder_sink(&mut self.ctx, &mut b, 1, &mut actualy_read) };
                 match res {
                     HSE_sink_res_HSER_SINK_OK => {}                  // ok
                     HSE_sink_res_HSER_SINK_ERROR_MISUSE => panic!(), // buffer full

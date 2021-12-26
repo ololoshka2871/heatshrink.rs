@@ -4,8 +4,6 @@
 #![allow(unused)]
 #![allow(deprecated)]
 
-use crate::data_provider;
-
 include!("bindings/bindings-decoder.rs");
 
 impl Default for _heatshrink_decoder {
@@ -14,26 +12,24 @@ impl Default for _heatshrink_decoder {
     }
 }
 
-pub struct HeatshrinkDecoder<'a, T>
+pub struct HeatshrinkDecoder<T>
 where
     T: Iterator<Item = u8>,
 {
     ctx: _heatshrink_decoder,
     finished: bool,
-
-    // Поскольку это трейт а не объект нужно чтобы ссылка жила не меньше чем сама структура
-    src: &'a mut T,
+    src: T,
 }
 
-impl<'a, T> HeatshrinkDecoder<'a, T>
+impl<T> HeatshrinkDecoder<T>
 where
     T: Iterator<Item = u8>,
 {
-    pub fn from_source(src: &'a mut T) -> HeatshrinkDecoder<T> {
-        let mut res = HeatshrinkDecoder {
+    pub fn source(src: T) -> Self {
+        let mut res = Self {
             ctx: _heatshrink_decoder::default(),
             finished: false,
-            src, // то же что src: src
+            src,
         };
         unsafe {
             heatshrink_decoder_reset(&mut res.ctx);
@@ -42,11 +38,11 @@ where
     }
 }
 
-impl<'a, T> Iterator for HeatshrinkDecoder<'a, T>
+impl<T> Iterator for HeatshrinkDecoder<T>
 where
     T: Iterator<Item = u8>,
 {
-    type Item = u8; // byte
+    type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -81,13 +77,10 @@ where
             }
 
             // need more data
-            let d = self.src.next();
-            if !d.is_none() {
+            if let Some(mut b) = self.src.next() {
                 let mut actualy_read: usize = 0;
-                let mut in_buf = d.unwrap();
-                let mut res = unsafe {
-                    heatshrink_decoder_sink(&mut self.ctx, &mut in_buf, 1, &mut actualy_read)
-                };
+                let mut res =
+                    unsafe { heatshrink_decoder_sink(&mut self.ctx, &mut b, 1, &mut actualy_read) };
                 match res {
                     HSD_sink_res_HSDR_SINK_OK => {}                // ok
                     HSD_sink_res_HSDR_SINK_ERROR_NULL => panic!(), // buffer full
