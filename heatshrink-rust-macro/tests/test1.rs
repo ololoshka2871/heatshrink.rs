@@ -13,8 +13,8 @@ mod tests {
 
     #[test]
     fn test_packed_file() {
-        static FILE_DATA: &[u8; 749] = include_bytes!("test1.rs");
-        static FILE_PACKED_DATA: &[u8; 441] = packed_file!("tests/test1.rs");
+        static FILE_DATA: &[u8; 1189] = include_bytes!("../src/lib.rs");
+        static FILE_PACKED_DATA: &[u8; 774] = packed_file!("heatshrink-rust-macro/src/lib.rs");
 
         let decoder = HeatshrinkDecoder::source(FILE_PACKED_DATA.iter().cloned());
 

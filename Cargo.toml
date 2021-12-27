@@ -1,0 +1,5 @@
+[workspace]
+members = [
+  "heatshrink-rust",
+  "heatshrink-rust-macro",
+]
