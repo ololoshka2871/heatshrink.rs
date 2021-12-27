@@ -3,6 +3,11 @@
 pub mod decoder;
 pub mod encoder;
 
+pub struct CompressedData<'a> {
+    pub data: &'a [u8],
+    pub original_size: usize,
+}
+
 #[cfg(all(unix))]
 #[macro_use]
 extern crate std;
