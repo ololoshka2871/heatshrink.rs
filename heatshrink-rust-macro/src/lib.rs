@@ -18,6 +18,12 @@ fn puck<T: Iterator<Item = u8>>(iter: T) -> TokenStream {
 }
 
 #[proc_macro]
+pub fn packed_string(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as LitStr).value();
+    puck(input.bytes().into_iter())
+}
+
+#[proc_macro]
 pub fn packed_bytes(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as LitByteStr).value();
     puck(input.into_iter())
