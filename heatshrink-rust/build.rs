@@ -8,6 +8,7 @@ fn main() {
         .files(src.iter())
         .include("../heatshrink")
         .flag("-Wno-implicit-fallthrough")
+        .opt_level_str("s")
         .define("HEATSHRINK_DYNAMIC_ALLOC", Some("0"))
         //.define("HEATSHRINK_DEBUGGING_LOGS", Some("1"))
         ;

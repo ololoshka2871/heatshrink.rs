@@ -1,16 +1,14 @@
 #![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
-#![allow(unused)]
-#![allow(deprecated)]
 
-include!("bindings/bindings-encoder.rs");
-
-impl Default for _heatshrink_encoder {
-    fn default() -> _heatshrink_encoder {
-        unsafe { core::mem::uninitialized() }
-    }
-}
+use crate::encoder_common::_heatshrink_encoder;
+use crate::encoder_common::{
+    heatshrink_encoder_finish, heatshrink_encoder_poll, heatshrink_encoder_reset,
+    heatshrink_encoder_sink,
+};
+use crate::encoder_common::{
+    HSE_finish_res_HSER_FINISH_DONE, HSE_finish_res_HSER_FINISH_MORE, HSE_poll_res_HSER_POLL_EMPTY,
+    HSE_poll_res_HSER_POLL_MORE, HSE_sink_res_HSER_SINK_OK,
+};
 
 pub struct HeatshrinkEncoder<T>
 where
@@ -54,7 +52,7 @@ where
                 heatshrink_encoder_poll(&mut self.ctx, &mut outbuf, 1, &mut actualy_read)
             };
             match res {
-                HSE_sink_res_HSER_POLL_EMPTY => {
+                HSE_poll_res_HSER_POLL_EMPTY => {
                     if actualy_read == 0 {
                         if self.finished {
                             return None;
@@ -63,7 +61,7 @@ where
                         return Some(outbuf);
                     }
                 }
-                HSE_sink_res_HSER_POLL_MORE => {
+                HSE_poll_res_HSER_POLL_MORE => {
                     // ok
                     if actualy_read == 1 {
                         return Some(outbuf);
@@ -74,20 +72,17 @@ where
                         );
                     }
                 }
-                HSE_sink_res_HSER_POLL_ERROR_NULL => panic!("Nullptr!"), /* NULL argument */
-                HSE_sink_res_HSER_POLL_ERROR_MISUSE => panic!(),         /* API misuse */
+                _ => panic!(),
             }
 
             // need more data
             if let Some(mut b) = self.src.next() {
                 let mut actualy_read: usize = 0;
-                let mut res =
+                let res =
                     unsafe { heatshrink_encoder_sink(&mut self.ctx, &mut b, 1, &mut actualy_read) };
                 match res {
-                    HSE_sink_res_HSER_SINK_OK => {}                  // ok
-                    HSE_sink_res_HSER_SINK_ERROR_MISUSE => panic!(), // buffer full
-                    HSE_sink_res_HSER_SINK_ERROR_NULL => panic!("Nullptr!"),
-                    N => panic!("Unknown result heatshrink_encoder_sink: {}", N),
+                    HSE_sink_res_HSER_SINK_OK => {} // ok
+                    _ => panic!(),
                 }
             } else {
                 // try finalise
@@ -95,9 +90,8 @@ where
                 let res = unsafe { heatshrink_encoder_finish(&mut self.ctx) };
                 match res {
                     HSE_finish_res_HSER_FINISH_DONE => return None, // ok
-                    HSE_finish_res_HSER_FINISH_ERROR_NULL => panic!("Nullptr!"),
-                    HSE_finish_res_HSER_FINISH_MORE => {} // there is data in encoder buff
-                    N => panic!("Unknown result heatshrink_encoder_finish: {}", N),
+                    HSE_finish_res_HSER_FINISH_MORE => {}           // there is data in encoder buff
+                    _ => panic!(),
                 }
             }
         }

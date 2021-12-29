@@ -72,8 +72,7 @@ where
                         );
                     }
                 }
-                HSDR_sink_res_HSER_POLL_ERROR_NULL => panic!("Nullptr!"), /* NULL argument */
-                HSDR_sink_res_HSER_POLL_ERROR_MISUSE => panic!(),         /* API misuse */
+                _ => panic!(),
             }
 
             // need more data
@@ -82,10 +81,8 @@ where
                 let mut res =
                     unsafe { heatshrink_decoder_sink(&mut self.ctx, &mut b, 1, &mut actualy_read) };
                 match res {
-                    HSD_sink_res_HSDR_SINK_OK => {}                // ok
-                    HSD_sink_res_HSDR_SINK_ERROR_NULL => panic!(), // buffer full
-                    HSD_sink_res_HSER_SINK_ERROR_NULL => panic!("Nullptr!"),
-                    N => panic!("Unknown result heatshrink_decoder_sink: {}", N),
+                    HSD_sink_res_HSDR_SINK_OK => {} // ok
+                    _ => panic!(),
                 }
             } else {
                 // try finalise
@@ -93,9 +90,8 @@ where
                 let res = unsafe { heatshrink_decoder_finish(&mut self.ctx) };
                 match res {
                     HSDR_finish_res_HSER_FINISH_DONE => return None, // ok
-                    HSDR_finish_res_HSER_FINISH_ERROR_NULL => panic!("Nullptr!"),
                     HSDR_finish_res_HSER_FINISH_MORE => {} // there is data in encoder buff
-                    N => panic!("Unknown result heatshrink_decoder_finish: {}", N),
+                    _ => panic!(),
                 }
             }
         }
