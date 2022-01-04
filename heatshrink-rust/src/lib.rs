@@ -20,26 +20,8 @@ extern crate std;
 mod tests {
     use crate::decoder::HeatshrinkDecoder;
     use crate::encoder::HeatshrinkEncoder;
-    use crate::encoder_to::HeatshrinkEncoderTo;
 
     use std::vec::Vec;
-
-    #[test]
-    fn encode_static_data() {
-        static DATA: &[u8; 19] = b"s;djfdlsdj\x00\0128sdfs";
-        let _ = HeatshrinkEncoder::source(DATA.iter().cloned()).collect::<Vec<_>>();
-    }
-
-    #[test]
-    fn encode_zeros() {
-        let zeros = [0u8; 8];
-        let mut enc = HeatshrinkEncoder::source(zeros.iter().cloned());
-
-        //result
-        assert_eq!(Some(0x0), enc.next());
-        assert_eq!(Some(0x38), enc.next());
-        assert_eq!(None, enc.next());
-    }
 
     #[test]
     fn decode_zeros() {
@@ -97,37 +79,5 @@ mod tests {
         println!("=unpacked: {}", decoded.len());
 
         assert_eq!(src, decoded);
-    }
-
-    #[test]
-    fn enc_to() {
-        use rand::Rng;
-
-        const DEST_LEN: usize = 64;
-        let mut rng = rand::thread_rng();
-
-        let mut dest = vec![0u8; DEST_LEN];
-        let mut enc = HeatshrinkEncoderTo::dest(dest.as_mut_slice());
-        let mut i = 0;
-
-        loop {
-            match enc.write_byte(rng.gen_range(0u8..0xff)) {
-                crate::encoder_to::Result::WritenOk(_) => {
-                    /* ok */
-                    i += 1;
-                }
-                crate::encoder_to::Result::WritenWarning(_) => break,
-                _ => panic!(),
-            }
-        }
-        match enc.finalise() {
-            crate::encoder_to::Result::WritenWarning(_) | crate::encoder_to::Result::Finished => {
-                /* ok */
-            }
-            _ => panic!(),
-        }
-
-        assert!(enc.writen() <= DEST_LEN);
-        println!("=pack: {} to {}", i, enc.writen());
     }
 }

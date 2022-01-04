@@ -97,3 +97,22 @@ where
         }
     }
 }
+
+#[cfg(all(unix))]
+#[cfg(test)]
+mod tests {
+    use crate::decoder::HeatshrinkDecoder;
+
+    use std::vec::Vec;
+
+    #[test]
+    fn decode_zeros() {
+        let input = [0u8, 0x38];
+        let mut dec = HeatshrinkDecoder::source(input.iter().cloned());
+
+        for _ in 0..8 {
+            assert_eq!(Some(0u8), dec.next());
+        }
+        assert_eq!(None, dec.next());
+    }
+}

@@ -97,3 +97,30 @@ where
         }
     }
 }
+
+#[cfg(all(unix))]
+#[cfg(test)]
+mod tests {
+    extern crate alloc;
+
+    use alloc::vec::Vec;
+
+    use crate::encoder::HeatshrinkEncoder;
+
+    #[test]
+    fn encode_static_data() {
+        static DATA: &[u8; 19] = b"s;djfdlsdj\x00\0128sdfs";
+        let _ = HeatshrinkEncoder::source(DATA.iter().cloned()).collect::<Vec<_>>();
+    }
+
+    #[test]
+    fn encode_zeros() {
+        let zeros = [0u8; 8];
+        let mut enc = HeatshrinkEncoder::source(zeros.iter().cloned());
+
+        //result
+        assert_eq!(Some(0x0), enc.next());
+        assert_eq!(Some(0x38), enc.next());
+        assert_eq!(None, enc.next());
+    }
+}

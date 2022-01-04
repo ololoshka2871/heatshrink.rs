@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn test_packed_file() {
-        static FILE_DATA: &[u8; 1613] = include_bytes!("../src/lib.rs");
+        static FILE_DATA: &[u8; 1617] = include_bytes!("../src/lib.rs");
         static FILE_PACKED_DATA: CompressedData = packed_file!("heatshrink-rust-macro/src/lib.rs");
 
         let decoder = HeatshrinkDecoder::source(FILE_PACKED_DATA.data.iter().cloned());

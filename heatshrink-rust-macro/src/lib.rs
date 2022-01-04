@@ -9,7 +9,7 @@ fn puck<T: Iterator<Item = u8>>(iter: T, original_size: usize) -> TokenStream {
     let encoder = HeatshrinkEncoder::source(iter);
 
     let compressed = encoder.collect::<Vec<_>>();
-    // Эта штука правильно составит стайс и правильно укажет тип элементов - u8.
+    // Эта штука правильно составит инстанс и правильно укажет тип элементов - u8.
     // Итерирование по образцу #(#_var_),* — the character before the asterisk is used as a separator
     quote! {
         CompressedData {
