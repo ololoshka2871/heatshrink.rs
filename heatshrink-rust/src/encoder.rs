@@ -7,7 +7,7 @@ use crate::encoder_common::{
 };
 use crate::encoder_common::{
     HSE_finish_res_HSER_FINISH_DONE, HSE_finish_res_HSER_FINISH_MORE, HSE_poll_res_HSER_POLL_EMPTY,
-    HSE_poll_res_HSER_POLL_MORE, HSE_sink_res_HSER_SINK_OK,
+    HSE_poll_res_HSER_POLL_MORE, HSE_sink_res_HSER_SINK_ERROR_MISUSE, HSE_sink_res_HSER_SINK_OK,
 };
 
 pub struct HeatshrinkEncoder<T>
@@ -15,6 +15,7 @@ where
     T: Iterator<Item = u8>,
 {
     ctx: _heatshrink_encoder,
+    delayed_byte: Option<u8>,
     finished: bool,
 
     // Поскольку это трейт а не объект нужно чтобы ссылка жила не меньше чем сама структура
@@ -28,6 +29,7 @@ where
     pub fn source(src: T) -> Self {
         let mut res = Self {
             ctx: _heatshrink_encoder::default(),
+            delayed_byte: None,
             finished: false,
             src, // то же что src: src
         };
@@ -75,23 +77,39 @@ where
                 _ => panic!(),
             }
 
-            // need more data
-            if let Some(mut b) = self.src.next() {
-                let mut actualy_read: usize = 0;
-                let res =
-                    unsafe { heatshrink_encoder_sink(&mut self.ctx, &mut b, 1, &mut actualy_read) };
-                match res {
-                    HSE_sink_res_HSER_SINK_OK => {} // ok
-                    _ => panic!(),
-                }
-            } else {
-                // try finalise
-                self.finished = true;
-                let res = unsafe { heatshrink_encoder_finish(&mut self.ctx) };
-                match res {
-                    HSE_finish_res_HSER_FINISH_DONE => return None, // ok
-                    HSE_finish_res_HSER_FINISH_MORE => {}           // there is data in encoder buff
-                    _ => panic!(),
+            if !self.finished {
+                loop {
+                    // need more data
+                    let v = if self.delayed_byte.is_some() {
+                        let v = self.delayed_byte;
+                        self.delayed_byte = None;
+                        v
+                    } else {
+                        self.src.next()
+                    };
+                    if let Some(mut b) = v {
+                        let mut actualy_read = 0;
+                        let res = unsafe {
+                            heatshrink_encoder_sink(&mut self.ctx, &mut b, 1, &mut actualy_read)
+                        };
+                        match res {
+                            HSE_sink_res_HSER_SINK_OK => { /* ok */ }
+                            HSE_sink_res_HSER_SINK_ERROR_MISUSE => {
+                                self.delayed_byte = Some(b);
+                                break;
+                            }
+                            _ => panic!(),
+                        }
+                    } else {
+                        // try finalise
+                        self.finished = true;
+                        let res = unsafe { heatshrink_encoder_finish(&mut self.ctx) };
+                        match res {
+                            HSE_finish_res_HSER_FINISH_DONE => return None, // ok
+                            HSE_finish_res_HSER_FINISH_MORE => break, // there is data in encoder buff
+                            _ => panic!(),
+                        }
+                    }
                 }
             }
         }

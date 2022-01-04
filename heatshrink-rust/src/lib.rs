@@ -65,7 +65,7 @@ mod tests {
 
         let mut rng = rand::thread_rng();
 
-        let src = (0..100)
+        let src = (0..257)
             .map(|_| rng.gen_range(0u8..0xff))
             .collect::<Vec<u8>>();
 

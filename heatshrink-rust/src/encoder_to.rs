@@ -249,4 +249,66 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(r, src);
     }
+
+    #[test]
+    fn encode_interrupt() {
+        use rand::Rng;
+
+        let mut rng = rand::thread_rng();
+        let mut dest = [0u8; 4096];
+        let mut src = Vec::new();
+        let mut in_count = 0usize;
+
+        let mut encoder = HeatshrinkEncoderTo::dest(&mut dest[..]);
+
+        let res = loop {
+            let v = rng.gen_range(0..u32::MAX);
+            src.push(v);
+
+            match encoder.push(v) {
+                crate::encoder_to::Result::Ok(e) => {
+                    encoder = e;
+                    in_count += mem::size_of::<u32>();
+                }
+                crate::encoder_to::Result::Done(result) => {
+                    in_count += mem::size_of::<u32>();
+                    println!(
+                        "Packed {} input bytes to {} compressed",
+                        in_count,
+                        result.len()
+                    );
+                    break result;
+                }
+                crate::encoder_to::Result::Overflow => panic!("overrun"),
+            }
+
+            if src.len() > 1500 / 4 {
+                match encoder.finish() {
+                    crate::encoder_to::Result::Done(result) => {
+                        println!(
+                            "Packed interrupt {} input bytes to {} compressed",
+                            in_count,
+                            result.len()
+                        );
+                        break result;
+                    }
+                    _ => panic!(),
+                }
+            }
+        };
+
+        let decoder = HeatshrinkDecoder::source(res.iter().cloned());
+
+        let r = decoder.collect::<Vec<_>>();
+        assert_eq!(r.len(), in_count);
+        let r = r
+            .chunks(mem::size_of::<u32>())
+            .map(|c| {
+                let mut v = [0; mem::size_of::<u32>()];
+                v.copy_from_slice(c);
+                u32::from_le_bytes(v)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(r, src);
+    }
 }
