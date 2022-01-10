@@ -38,13 +38,16 @@ pub struct HeatshrinkEncoderToVec {
 
 impl HeatshrinkEncoderToVec {
     /// 1. Cлайс для записи должен быть капасити не меньше чем MINIMAL_BWFF_SIZE
-    pub fn dest(dest: Vec<u8>) -> Self {
+    pub fn dest(mut dest: Vec<u8>, offset: usize) -> Self {
         assert!(dest.capacity() >= MINIMAL_BUFF_SIZE);
+
+        // tamporary change vector size to it's max capasity
+        unsafe { dest.set_len(dest.capacity()) };
         let mut res = Self {
             ctx: _heatshrink_encoder::default(),
-            reserved_start_pos: dest.capacity() - MINIMAL_BUFF_SIZE,
+            reserved_start_pos: dest.len() - MINIMAL_BUFF_SIZE,
             dest,
-            wp: 0,
+            wp: offset,
         };
         unsafe {
             heatshrink_encoder_reset(&mut res.ctx);
@@ -201,7 +204,8 @@ mod tests {
     use alloc::vec::Vec;
 
     use crate::{
-        decoder::HeatshrinkDecoder, encoder::HeatshrinkEncoder, encoder_to_vec::HeatshrinkEncoderToVec,
+        decoder::HeatshrinkDecoder, encoder::HeatshrinkEncoder,
+        encoder_to_vec::HeatshrinkEncoderToVec,
     };
 
     #[test]
@@ -209,11 +213,11 @@ mod tests {
         use rand::Rng;
 
         let mut rng = rand::thread_rng();
-        let dest = vec![0u8; 4096];
+        let dest = Vec::with_capacity(4096);
         let mut src = Vec::new();
         let mut in_count = 0usize;
 
-        let mut encoder = HeatshrinkEncoderToVec::dest(dest);
+        let mut encoder = HeatshrinkEncoderToVec::dest(dest, 0);
 
         let res = loop {
             let v = rng.gen_range(0..u32::MAX);
@@ -257,15 +261,58 @@ mod tests {
     }
 
     #[test]
+    fn encode_to_with_offset() {
+        use rand::Rng;
+
+        const OFFSET: usize = 16;
+
+        let mut rng = rand::thread_rng();
+        let mut dest = Vec::with_capacity(4096);
+        let mut src = Vec::new();
+        let mut in_count = 0usize;
+
+        for i in 0..OFFSET {
+            dest.push(i as u8);
+        }
+
+        let mut encoder = HeatshrinkEncoderToVec::dest(dest, OFFSET);
+
+        let res = loop {
+            let v = rng.gen_range(0..u32::MAX);
+            src.push(v);
+
+            match encoder.push(v) {
+                crate::encoder_to_vec::Result::Ok(e) => {
+                    encoder = e;
+                    in_count += mem::size_of::<u32>();
+                }
+                crate::encoder_to_vec::Result::Done(result) => {
+                    in_count += mem::size_of::<u32>();
+                    println!(
+                        "Packed {} input bytes to {} compressed",
+                        in_count,
+                        result.len()
+                    );
+                    break result;
+                }
+                crate::encoder_to_vec::Result::Overflow => panic!("overrun"),
+            }
+        };
+
+        assert_eq!(res[0..OFFSET], (0..OFFSET).map(|i| i as u8).collect::<Vec<_>>());
+    }
+
+
+    #[test]
     fn encode_interrupt() {
         use rand::Rng;
 
         let mut rng = rand::thread_rng();
-        let dest = vec![0u8; 4096];
+        let dest = Vec::with_capacity(4096);
         let mut src = Vec::new();
         let mut in_count = 0usize;
 
-        let mut encoder = HeatshrinkEncoderToVec::dest(dest);
+        let mut encoder = HeatshrinkEncoderToVec::dest(dest, 0);
 
         let res = loop {
             let v = rng.gen_range(0..u32::MAX);
