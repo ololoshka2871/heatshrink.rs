@@ -264,7 +264,7 @@ mod tests {
     fn encode_to_with_offset() {
         use rand::Rng;
 
-        const OFFSET: usize = 16;
+        const OFFSET: usize = 8;
 
         let mut rng = rand::thread_rng();
         let mut dest = Vec::with_capacity(4096);
