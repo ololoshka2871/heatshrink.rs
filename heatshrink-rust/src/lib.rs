@@ -1,10 +1,12 @@
 #![no_std]
 
+extern crate alloc;
+
 pub mod decoder;
 
 pub mod encoder;
 pub(crate) mod encoder_common;
-pub mod encoder_to;
+pub mod encoder_to_vec;
 
 pub struct CompressedData<'a> {
     pub data: &'a [u8],

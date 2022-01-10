@@ -1,5 +1,7 @@
 #![allow(non_upper_case_globals)]
 
+use alloc::vec::Vec;
+
 use crate::encoder_common::_heatshrink_encoder;
 use crate::encoder_common::{
     heatshrink_encoder_finish, heatshrink_encoder_poll, heatshrink_encoder_reset,
@@ -11,12 +13,12 @@ use crate::encoder_common::{
     HSE_sink_res_HSER_SINK_ERROR_MISUSE, HSE_sink_res_HSER_SINK_OK, HEATSHRINK_STATIC_WINDOW_BITS,
 };
 
-pub enum Result<'a> {
+pub enum Result {
     // данные успешно обработаны
-    Ok(HeatshrinkEncoderTo<'a>),
+    Ok(HeatshrinkEncoderToVec),
 
     // Количество байт поступивших на вход + выходной слайс
-    Done(&'a [u8]),
+    Done(Vec<u8>),
 
     // ошибка: выходной буфер кончился, финализация неуспешна
     Overflow,
@@ -27,21 +29,21 @@ const MINIMAL_BUFF_SIZE: usize = 1 << HEATSHRINK_STATIC_WINDOW_BITS;
 /// во входном буфере после успешного poll()
 const MAX_SADIMENT: usize = 15;
 
-pub struct HeatshrinkEncoderTo<'a> {
+pub struct HeatshrinkEncoderToVec {
     ctx: _heatshrink_encoder,
-    dest: &'a mut [u8],
+    dest: Vec<u8>,
     wp: usize,
     reserved_start_pos: usize,
 }
 
-impl<'a> HeatshrinkEncoderTo<'a> {
-    /// 1. Cлайс для записи должен быть размера не меньше чем MINIMAL_BWFF_SIZE
-    pub fn dest(buff: &'a mut [u8]) -> Self {
-        assert!(buff.len() >= MINIMAL_BUFF_SIZE);
+impl HeatshrinkEncoderToVec {
+    /// 1. Cлайс для записи должен быть капасити не меньше чем MINIMAL_BWFF_SIZE
+    pub fn dest(dest: Vec<u8>) -> Self {
+        assert!(dest.capacity() >= MINIMAL_BUFF_SIZE);
         let mut res = Self {
             ctx: _heatshrink_encoder::default(),
-            reserved_start_pos: buff.len() - MINIMAL_BUFF_SIZE,
-            dest: buff,
+            reserved_start_pos: dest.capacity() - MINIMAL_BUFF_SIZE,
+            dest,
             wp: 0,
         };
         unsafe {
@@ -50,7 +52,7 @@ impl<'a> HeatshrinkEncoderTo<'a> {
         res
     }
 
-    pub fn push_bytes(mut self, mut data: &[u8]) -> Result<'a> {
+    pub fn push_bytes(mut self, mut data: &[u8]) -> Result {
         let mut writen = 0;
         match unsafe {
             heatshrink_encoder_sink(&mut self.ctx, data.as_ptr(), data.len(), &mut writen)
@@ -143,7 +145,7 @@ impl<'a> HeatshrinkEncoderTo<'a> {
     }
 
     /// Любые данные, просто побайтно скармливаются упаковщику
-    pub fn push<T: Copy>(self, data: T) -> Result<'a> {
+    pub fn push<T: Copy>(self, data: T) -> Result {
         let data = unsafe {
             core::slice::from_raw_parts(
                 &data as *const _ as *const u8,
@@ -154,7 +156,7 @@ impl<'a> HeatshrinkEncoderTo<'a> {
         self.push_bytes(data)
     }
 
-    pub fn finish(mut self) -> Result<'a> {
+    pub fn finish(mut self) -> Result {
         let result = unsafe { heatshrink_encoder_finish(&mut self.ctx) };
         match result {
             HSE_finish_res_HSER_FINISH_MORE => {
@@ -171,7 +173,8 @@ impl<'a> HeatshrinkEncoderTo<'a> {
                     // Все успешно обработано, все влезло в выходной буффер
                     HSE_poll_res_HSER_POLL_EMPTY => {
                         self.wp += out_writen;
-                        Result::Done(&self.dest[..self.wp])
+                        unsafe { self.dest.set_len(self.wp) };
+                        Result::Done(self.dest)
                     }
                     // Финализировано неудачно, остаток данных не влез в указанный буфер
                     // Записанные данные неконсистентны, остается только выбросить все в мусор
@@ -180,7 +183,10 @@ impl<'a> HeatshrinkEncoderTo<'a> {
                     _ => panic!(),
                 }
             }
-            HSE_finish_res_HSER_FINISH_DONE => Result::Done(&self.dest[..self.wp]),
+            HSE_finish_res_HSER_FINISH_DONE => {
+                unsafe { self.dest.set_len(self.wp) };
+                Result::Done(self.dest)
+            }
             _ => panic!(),
         }
     }
@@ -195,7 +201,7 @@ mod tests {
     use alloc::vec::Vec;
 
     use crate::{
-        decoder::HeatshrinkDecoder, encoder::HeatshrinkEncoder, encoder_to::HeatshrinkEncoderTo,
+        decoder::HeatshrinkDecoder, encoder::HeatshrinkEncoder, encoder_to_vec::HeatshrinkEncoderToVec,
     };
 
     #[test]
@@ -203,22 +209,22 @@ mod tests {
         use rand::Rng;
 
         let mut rng = rand::thread_rng();
-        let mut dest = [0u8; 4096];
+        let dest = vec![0u8; 4096];
         let mut src = Vec::new();
         let mut in_count = 0usize;
 
-        let mut encoder = HeatshrinkEncoderTo::dest(&mut dest[..]);
+        let mut encoder = HeatshrinkEncoderToVec::dest(dest);
 
         let res = loop {
             let v = rng.gen_range(0..u32::MAX);
             src.push(v);
 
             match encoder.push(v) {
-                crate::encoder_to::Result::Ok(e) => {
+                crate::encoder_to_vec::Result::Ok(e) => {
                     encoder = e;
                     in_count += mem::size_of::<u32>();
                 }
-                crate::encoder_to::Result::Done(result) => {
+                crate::encoder_to_vec::Result::Done(result) => {
                     in_count += mem::size_of::<u32>();
                     println!(
                         "Packed {} input bytes to {} compressed",
@@ -227,7 +233,7 @@ mod tests {
                     );
                     break result;
                 }
-                crate::encoder_to::Result::Overflow => panic!("overrun"),
+                crate::encoder_to_vec::Result::Overflow => panic!("overrun"),
             }
         };
 
@@ -255,22 +261,22 @@ mod tests {
         use rand::Rng;
 
         let mut rng = rand::thread_rng();
-        let mut dest = [0u8; 4096];
+        let dest = vec![0u8; 4096];
         let mut src = Vec::new();
         let mut in_count = 0usize;
 
-        let mut encoder = HeatshrinkEncoderTo::dest(&mut dest[..]);
+        let mut encoder = HeatshrinkEncoderToVec::dest(dest);
 
         let res = loop {
             let v = rng.gen_range(0..u32::MAX);
             src.push(v);
 
             match encoder.push(v) {
-                crate::encoder_to::Result::Ok(e) => {
+                crate::encoder_to_vec::Result::Ok(e) => {
                     encoder = e;
                     in_count += mem::size_of::<u32>();
                 }
-                crate::encoder_to::Result::Done(result) => {
+                crate::encoder_to_vec::Result::Done(result) => {
                     in_count += mem::size_of::<u32>();
                     println!(
                         "Packed {} input bytes to {} compressed",
@@ -279,12 +285,12 @@ mod tests {
                     );
                     break result;
                 }
-                crate::encoder_to::Result::Overflow => panic!("overrun"),
+                crate::encoder_to_vec::Result::Overflow => panic!("overrun"),
             }
 
             if src.len() > 1500 / 4 {
                 match encoder.finish() {
-                    crate::encoder_to::Result::Done(result) => {
+                    crate::encoder_to_vec::Result::Done(result) => {
                         println!(
                             "Packed interrupt {} input bytes to {} compressed",
                             in_count,
