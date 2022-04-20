@@ -4,13 +4,15 @@ fn main() {
         "../heatshrink-dist/heatshrink_encoder.c",
     ];
     let mut builder = cc::Build::new();
-    let build = builder
+    let builder = builder
         .files(src.iter())
         .include("../heatshrink")
-        .flag("-Wno-implicit-fallthrough")
         .opt_level_str("s")
         .define("HEATSHRINK_DYNAMIC_ALLOC", Some("0"))
         //.define("HEATSHRINK_DEBUGGING_LOGS", Some("1"))
         ;
-    build.compile("heatshrink");
+    #[cfg(not(target_os = "windows"))]
+    let builder = builder.flag("-Wno-implicit-fallthrough");
+
+    builder.compile("heatshrink");
 }
