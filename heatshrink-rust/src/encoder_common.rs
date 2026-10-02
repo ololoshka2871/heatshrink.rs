@@ -4,11 +4,13 @@
 #![allow(unused)]
 #![allow(deprecated)]
 
+use core::mem::MaybeUninit;
+
 include!("bindings/bindings-encoder.rs");
 
 impl Default for _heatshrink_encoder {
     fn default() -> Self {
-        unsafe { core::mem::uninitialized() }
+        unsafe { { MaybeUninit::zeroed().assume_init() } }
     }
 }
 

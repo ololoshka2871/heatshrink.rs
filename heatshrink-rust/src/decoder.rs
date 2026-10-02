@@ -4,11 +4,13 @@
 #![allow(unused)]
 #![allow(deprecated)]
 
+use core::mem::MaybeUninit;
+
 include!("bindings/bindings-decoder.rs");
 
 impl Default for _heatshrink_decoder {
     fn default() -> _heatshrink_decoder {
-        unsafe { core::mem::uninitialized() }
+        unsafe { MaybeUninit::zeroed().assume_init() }
     }
 }
 
